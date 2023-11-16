@@ -1,11 +1,11 @@
-#include <iostream>
-#include <cstdio>
-#include <cstdlib>
-#include <cmath>
-#include <vector>
+#include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
 
 #include "mpi.h"
 #include "omp.h"
+
+#define size_t unsigned
 
 double Lx = 0;
 double Ly = 0;
@@ -23,7 +23,7 @@ double K = 0;
 
 double a_2 = 0;
 
-std::vector< std::vector<double> > u(3);
+double* u[3];
 
 void SetGlobalVar(char** argv) {
     double L = atof(argv[1]);
@@ -46,7 +46,7 @@ size_t GetIndex(size_t i, size_t j, size_t k) {
     return (i * (N + 2) + j) * (N + 2) + k;
 }
 
-double Solution(double x, double y, double z, double t = 0.0) {
+double Solution(double x, double y, double z, double t) {
     const double a = M_PI / 2.0 * sqrt(1.0 / (Lx * Lx) + 4.0 / (Ly * Ly) + 9.0 / (Lz * Lz));
     return sin(M_PI * x / Lx) * sin(2.0 * M_PI * y / Ly) * sin(3.0 * M_PI * z / Lz) * cos(a * t);
 }
@@ -92,7 +92,7 @@ void InitFirstSteps() {
     for (size_t i = 1; i < N; i++)
         for (size_t j = 1; j < N; j++)
             for (size_t k = 1; k < N; k++)
-                u[0][GetIndex(i, j, k)] = Solution(i * hx, j * hy, k * hz);
+                u[0][GetIndex(i, j, k)] = Solution(i * hx, j * hy, k * hz, 0);
 
     for (size_t i = 1; i < N; i++)
         for (size_t j = 1; j < N; j++)
@@ -107,9 +107,10 @@ void CalculateError(size_t step) {
         for (size_t j = 0; j <= N; j++)
             for (size_t k = 0; k <= N; k++)
             {
-                err = std::max(err, fabs(u[step % 3][GetIndex(i, j, k)] - Solution(i * hx, j * hy, k * hz, step * tau)));
+                if (err < fabs(u[step % 3][GetIndex(i, j, k)] - Solution(i * hx, j * hy, k * hz, step * tau)))
+                    err = fabs(u[step % 3][GetIndex(i, j, k)] - Solution(i * hx, j * hy, k * hz, step * tau));
             }
-    std::cout << "Max Error on step = " << step << ": " << err << std::endl;
+    printf("Max Error on step = %d: %f\n", step, err);
 }
 
 int main(int argc, char** argv) {
@@ -119,9 +120,9 @@ int main(int argc, char** argv) {
     double end;
     start = omp_get_wtime ();
 
-    u[0].resize((N + 2) * (N + 2) * (N + 2));
-    u[1].resize((N + 2) * (N + 2) * (N + 2));
-    u[2].resize((N + 2) * (N + 2) * (N + 2));
+    u[0] = malloc((N + 2) * (N + 2) * (N + 2));
+    u[1] = malloc((N + 2) * (N + 2) * (N + 2));
+    u[2] = malloc((N + 2) * (N + 2) * (N + 2));
 
     InitFirstSteps();
 
